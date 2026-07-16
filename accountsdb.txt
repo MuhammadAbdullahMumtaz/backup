@@ -1,0 +1,609 @@
+USE master_erp;
+
+-- ==========================================
+-- Company Table
+-- ==========================================
+CREATE TABLE CompanyName (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    company_name VARCHAR(255) NOT NULL UNIQUE,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- ==========================================
+-- Logins Table
+-- ==========================================
+CREATE TABLE Logins (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+
+    username VARCHAR(100) NOT NULL,
+    password VARCHAR(255) NOT NULL,
+
+    role ENUM('Admin', 'User')
+    DEFAULT 'User',
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_Login_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    UNIQUE(company_id, username)
+);
+
+-- ==========================================
+-- Financial Year Table
+-- ==========================================
+CREATE TABLE FinancialYear (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+
+    year_detail VARCHAR(50) NOT NULL,
+
+    status ENUM('Active','Inactive')
+    DEFAULT 'Inactive',
+
+    current_month VARCHAR(25),
+
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_FinYear_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    UNIQUE(company_id, year_detail, current_month)
+);
+
+-- ==========================================
+-- BalanceSheet Table
+-- ==========================================
+CREATE TABLE BalanceSheet
+(
+    id TINYINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+
+    details VARCHAR(255) NOT NULL,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_BalanceSheet_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    UNIQUE(company_id, details)
+);
+
+-- ==========================================
+-- MainCode Table
+-- ==========================================
+CREATE TABLE MainCode
+(
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+
+    balancesheet_id TINYINT UNSIGNED NOT NULL,
+
+    code CHAR(3) NOT NULL,
+
+    details VARCHAR(255) NOT NULL,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_MainCode_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_MainCode_BalanceSheet
+        FOREIGN KEY (balancesheet_id)
+        REFERENCES BalanceSheet(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    UNIQUE(company_id, balancesheet_id, details),
+
+    UNIQUE(company_id, code)
+);
+
+-- ==========================================
+-- SubCode Table
+-- ==========================================
+CREATE TABLE SubCode
+(
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+
+    maincode_id INT NOT NULL,
+
+    code CHAR(5) NOT NULL,
+
+    details VARCHAR(255) NOT NULL,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_SubCode_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_SubCode_MainCode
+        FOREIGN KEY (maincode_id)
+        REFERENCES MainCode(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    UNIQUE(company_id, maincode_id, details),
+
+    UNIQUE(company_id, code)
+);
+
+-- ==========================================
+-- ChartOfAccount Table
+-- ==========================================
+CREATE TABLE ChartOfAccount
+(
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+
+    subcode_id INT NOT NULL,
+
+    financialyear_id INT NOT NULL,
+
+    code CHAR(9) NOT NULL,
+
+    account_name VARCHAR(255) NOT NULL,
+
+    budget DECIMAL(18,2) DEFAULT 0.00,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_COA_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_COA_SubCode
+        FOREIGN KEY (subcode_id)
+        REFERENCES SubCode(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_COA_FinancialYear
+        FOREIGN KEY (financialyear_id)
+        REFERENCES FinancialYear(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    UNIQUE(company_id, account_name),
+
+    UNIQUE(company_id, code)
+);
+
+-- ==========================================
+-- ChartDetail Table
+-- ==========================================
+CREATE TABLE ChartDetail
+(
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+
+    chartofaccount_id INT NOT NULL,
+
+    address VARCHAR(500),
+
+    province VARCHAR(100),
+
+    city VARCHAR(100),
+
+    cell_no VARCHAR(30),
+
+    income_tax_no VARCHAR(100),
+
+    group_no VARCHAR(100),
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_ChartDetail_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_ChartDetail_ChartOfAccount
+        FOREIGN KEY (chartofaccount_id)
+        REFERENCES ChartOfAccount(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    UNIQUE(chartofaccount_id)
+);
+
+-- ==========================================
+-- OpeningBalance Table
+-- ==========================================
+CREATE TABLE OpeningBalance
+(
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+
+    chartofaccount_id INT NOT NULL,
+
+    financialyear_id INT NOT NULL,
+
+    debit DECIMAL(18,2) DEFAULT 0.00,
+
+    credit DECIMAL(18,2) DEFAULT 0.00,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_OpeningBalance_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_OpeningBalance_ChartOfAccount
+        FOREIGN KEY (chartofaccount_id)
+        REFERENCES ChartOfAccount(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_OpeningBalance_FinancialYear
+        FOREIGN KEY (financialyear_id)
+        REFERENCES FinancialYear(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    UNIQUE(company_id, chartofaccount_id, financialyear_id)
+);
+
+
+
+
+
+
+
+
+
+-- =====================================================
+-- MainItem
+-- =====================================================
+CREATE TABLE MainItem (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+
+    code VARCHAR(2) NOT NULL,
+
+    details VARCHAR(255) NOT NULL,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_MainItem_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    UNIQUE(company_id, code),
+    UNIQUE(company_id, details)
+);
+
+
+
+-- =====================================================
+-- SubItem
+-- =====================================================
+CREATE TABLE SubItem (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT(9) NOT NULL,
+
+    mainitem_id INT(9) NOT NULL,
+
+    code VARCHAR(4) NOT NULL,
+
+    details VARCHAR(255) NOT NULL,
+
+    GL_purchase INT(9),
+
+    GL_sale INT(9),
+
+    GL_gst INT(9),
+
+    GL_further INT(9),
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    UNIQUE(company_id, mainitem_id, code),
+    UNIQUE(company_id, mainitem_id, details)
+);
+
+
+
+-- =====================================================
+-- ItemDetail
+-- =====================================================
+CREATE TABLE ItemDetail (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+
+    subitem_id INT NOT NULL,
+
+    code VARCHAR(8) NOT NULL,
+
+    details VARCHAR(255) NOT NULL,
+
+    HSCode VARCHAR(100),
+
+    Unit VARCHAR(50),
+
+    PackingUnit VARCHAR(50),
+
+    Barcode VARCHAR(100),
+
+    Image VARCHAR(500),
+
+    Location VARCHAR(255),
+
+    MinLimit DECIMAL(18,2) DEFAULT 0.00,
+
+    MaxLimit DECIMAL(18,2) DEFAULT 0.00,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_ItemDetail_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_ItemDetail_SubItem
+        FOREIGN KEY (subitem_id)
+        REFERENCES SubItem(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    UNIQUE(company_id, subitem_id, code),
+    UNIQUE(company_id, subitem_id, details)
+);
+
+-- ==========================================
+-- ItemOpening Table
+-- ==========================================
+CREATE TABLE ItemOpening
+(
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+    
+    financialyear_id INT NOT NULL,
+
+    itemdetail_id INT NOT NULL,
+
+    quantity INT NOT NULL,
+
+    weight DECIMAL(18,2) DEFAULT 0.00,
+    
+    rate DECIMAL(18,2) DEFAULT 0.00,
+    
+    amount DECIMAL(18,2) DEFAULT 0.00,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_ItemOpening_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_ItemOpening_FinancialYear
+        FOREIGN KEY (financialyear_id)
+        REFERENCES FinancialYear(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+    
+    CONSTRAINT FK_ItemOpening_ItemDetail
+        FOREIGN KEY (itemdetail_id)
+        REFERENCES itemdetail(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    UNIQUE(company_id, financialyear_id, itemdetail_id)
+);
+
+
+
+
+
+
+
+
+
+
+
+-- ==========================================
+-- VoucherType Table
+-- ==========================================
+
+CREATE TABLE VoucherType (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+
+    type VARCHAR(10) NOT NULL,
+
+    details VARCHAR(150) NOT NULL,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_vouchertype_company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE (company_id, details)
+);
+
+-- ==========================================
+-- VoucherMain Table
+-- ==========================================
+
+CREATE TABLE VoucherMain (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+
+    vouchertype_id INT NOT NULL,
+
+    financialyear_id INT NOT NULL,
+
+    voucher_no VARCHAR(30) NOT NULL,
+
+    voucher_date DATE NOT NULL,
+
+    voucher_month VARCHAR(25),
+
+    isBalanced ENUM('Balanced', 'Unbalanced')
+        NOT NULL DEFAULT 'Unbalanced',
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_vouchermain_company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT fk_vouchermain_vouchertype
+        FOREIGN KEY (vouchertype_id)
+        REFERENCES VoucherType(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT fk_vouchermain_finyear
+        FOREIGN KEY (financialyear_id)
+        REFERENCES FinancialYear(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE (company_id, financialyear_id, voucher_month, voucher_no)
+);
+
+-- ==========================================
+-- VoucherDetail Table
+-- ==========================================
+
+CREATE TABLE VoucherDetail (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+
+    vouchermain_id INT NOT NULL,
+
+    financialyear_id INT NOT NULL,
+
+    accountcode INT(9) NOT NULL,
+
+    entry_no INT NOT NULL,
+
+    narration TEXT,
+
+    debit DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    credit DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    voucher_month VARCHAR(25) NOT NULL,
+
+    cheque_no VARCHAR(50) DEFAULT NULL,
+
+    cheque_date DATE DEFAULT NULL,
+
+    status VARCHAR(150) NOT NULL,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    -- Foreign Keys
+    CONSTRAINT fk_voucherdetail_company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT fk_voucherdetail_vouchermain
+        FOREIGN KEY (vouchermain_id)
+        REFERENCES VoucherMain(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT fk_voucherdetail_finyear
+        FOREIGN KEY (financialyear_id)
+        REFERENCES FinancialYear(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE (vouchermain_id, entry_no)
+);
+
