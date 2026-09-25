@@ -1,0 +1,1836 @@
+-- =====================================================================
+-- UPDATED SCHEMA (v2)
+-- Adds: Department master, Inward/Outward Gate Pass, Issued, Production,
+--       Sales Contract flows, GST columns on purchase/sales lines.
+-- See the accompanying "changes made" summary for every decision taken.
+-- =====================================================================
+
+-- ==========================================
+-- Company Table
+-- ==========================================
+CREATE TABLE CompanyName (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    company_name VARCHAR(255) NOT NULL UNIQUE,
+
+    NTN_No VARCHAR(50) NULL,
+    Business_Name VARCHAR(255) NULL,
+    Province VARCHAR(100) NULL,
+    Address VARCHAR(500) NULL,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- ==========================================
+-- Logins Table
+-- ==========================================
+CREATE TABLE Logins (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+
+    username VARCHAR(100) NOT NULL,
+    password VARCHAR(255) NOT NULL,
+
+    role ENUM('Admin', 'User')
+    DEFAULT 'User',
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_Login_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE(company_id, username)
+);
+
+-- ==========================================
+-- Financial Year Table
+-- ==========================================
+CREATE TABLE FinancialYear (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+
+    year_detail VARCHAR(50) NOT NULL,
+
+    status ENUM('Active','Inactive')
+    DEFAULT 'Inactive',
+
+    current_month VARCHAR(25),
+
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_FinYear_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE(company_id, year_detail, current_month)
+);
+
+-- ==========================================
+-- Department Table
+-- ==========================================
+CREATE TABLE Department (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+
+    department_name VARCHAR(150) NOT NULL,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_Department_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE(company_id, department_name)
+);
+
+-- ==========================================
+-- Insert some records to check in database
+-- ==========================================
+-- 1) Add the company
+INSERT INTO CompanyName (company_name)
+VALUES ('AAM Tech Solutions');
+
+-- 2) Add the login for that company
+INSERT INTO Logins (company_id, username, password, role)
+VALUES (
+    (SELECT id FROM CompanyName WHERE company_name = 'AAM Tech Solutions'),
+    'admin',
+    '282821',
+    'Admin'
+);
+
+-- 3) Add the financial year for that company
+INSERT INTO FinancialYear (company_id, year_detail, status, current_month, start_date, end_date)
+VALUES (
+    (SELECT id FROM CompanyName WHERE company_name = 'AAM Tech Solutions'),
+    '2026-2027',
+    'Active',
+    'July',
+    '2026-07-01',
+    '2027-06-30'
+);
+
+-- 4) Add a sample department
+INSERT INTO Department (company_id, department_name)
+VALUES (
+    (SELECT id FROM CompanyName WHERE company_name = 'AAM Tech Solutions'),
+    'Ginning'
+);
+
+
+-- ==========================================
+-- BalanceSheet Table
+-- ==========================================
+CREATE TABLE BalanceSheet
+(
+    id TINYINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+
+    details VARCHAR(255) NOT NULL,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_BalanceSheet_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE(company_id, details)
+);
+
+-- ==========================================
+-- MainCode Table
+-- ==========================================
+CREATE TABLE MainCode
+(
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+
+    balancesheet_id TINYINT UNSIGNED NOT NULL,
+
+    code CHAR(3) NOT NULL,
+
+    details VARCHAR(255) NOT NULL,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_MainCode_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_MainCode_BalanceSheet
+        FOREIGN KEY (balancesheet_id)
+        REFERENCES BalanceSheet(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE(company_id, balancesheet_id, details),
+
+    UNIQUE(company_id, code)
+);
+
+-- ==========================================
+-- SubCode Table
+-- ==========================================
+CREATE TABLE SubCode
+(
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+
+    maincode_id INT NOT NULL,
+
+    code CHAR(5) NOT NULL,
+
+    details VARCHAR(255) NOT NULL,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_SubCode_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_SubCode_MainCode
+        FOREIGN KEY (maincode_id)
+        REFERENCES MainCode(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE(company_id, maincode_id, details),
+
+    UNIQUE(company_id, code)
+);
+
+-- ==========================================
+-- ChartOfAccount Table
+-- ==========================================
+CREATE TABLE ChartOfAccount
+(
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+
+    subcode_id INT NOT NULL,
+
+    financialyear_id INT NOT NULL,
+
+    code CHAR(9) NOT NULL,
+
+    account_name VARCHAR(255) NOT NULL,
+
+    budget DECIMAL(18,2) DEFAULT 0.00,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_COA_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_COA_SubCode
+        FOREIGN KEY (subcode_id)
+        REFERENCES SubCode(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_COA_FinancialYear
+        FOREIGN KEY (financialyear_id)
+        REFERENCES FinancialYear(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE(company_id, account_name),
+
+    UNIQUE(company_id, code)
+);
+
+-- ==========================================
+-- ChartDetail Table
+-- ==========================================
+CREATE TABLE ChartDetail
+(
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+
+    chartofaccount_id INT NOT NULL,
+
+    business_name VARCHAR(50),
+
+    address VARCHAR(500),
+
+    province VARCHAR(100),
+
+    city VARCHAR(100),
+
+    cell_no VARCHAR(30),
+
+    income_tax_no VARCHAR(100),
+
+    group_no VARCHAR(100),
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_ChartDetail_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_ChartDetail_ChartOfAccount
+        FOREIGN KEY (chartofaccount_id)
+        REFERENCES ChartOfAccount(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE(chartofaccount_id)
+);
+
+-- ==========================================
+-- OpeningBalance Table
+-- ==========================================
+CREATE TABLE OpeningBalance
+(
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+
+    chartofaccount_id INT NOT NULL,
+
+    financialyear_id INT NOT NULL,
+
+    debit DECIMAL(18,2) DEFAULT 0.00,
+
+    credit DECIMAL(18,2) DEFAULT 0.00,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_OpeningBalance_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_OpeningBalance_ChartOfAccount
+        FOREIGN KEY (chartofaccount_id)
+        REFERENCES ChartOfAccount(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_OpeningBalance_FinancialYear
+        FOREIGN KEY (financialyear_id)
+        REFERENCES FinancialYear(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE(company_id, chartofaccount_id, financialyear_id)
+);
+
+
+-- =====================================================
+-- MainItem
+-- =====================================================
+CREATE TABLE MainItem (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+
+    code VARCHAR(2) NOT NULL,
+
+    details VARCHAR(255) NOT NULL,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_MainItem_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE(company_id, code),
+    UNIQUE(company_id, details)
+);
+
+
+-- =====================================================
+-- SubItem
+-- =====================================================
+CREATE TABLE SubItem (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+
+    mainitem_id INT NOT NULL,
+
+    code VARCHAR(4) NOT NULL,
+
+    details VARCHAR(255) NOT NULL,
+
+    GL_purchase VARCHAR(9) NULL,
+
+    GL_sale VARCHAR(9) NULL,
+
+    GL_gst VARCHAR(9) NULL,
+
+    GL_further VARCHAR(9) NULL,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_SubItem_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_SubItem_MainItem
+        FOREIGN KEY (mainitem_id)
+        REFERENCES MainItem(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE(company_id, mainitem_id, code),
+    UNIQUE(company_id, mainitem_id, details)
+);
+
+
+-- =====================================================
+-- ItemDetail
+-- =====================================================
+CREATE TABLE ItemDetail (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+
+    subitem_id INT NOT NULL,
+
+    code VARCHAR(8) NOT NULL,
+
+    details VARCHAR(255) NOT NULL,
+
+    HSCode VARCHAR(100),
+
+    Unit VARCHAR(50),
+
+    PackingUnit VARCHAR(50),
+
+    Barcode VARCHAR(100),
+
+    Image VARCHAR(500),
+
+    Location VARCHAR(255),
+
+    MinLimit DECIMAL(18,2) DEFAULT 0.00,
+
+    MaxLimit DECIMAL(18,2) DEFAULT 0.00,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_ItemDetail_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_ItemDetail_SubItem
+        FOREIGN KEY (subitem_id)
+        REFERENCES SubItem(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE(company_id, subitem_id, code),
+    UNIQUE(company_id, subitem_id, details)
+);
+
+-- ==========================================
+-- ItemOpening Table
+-- ==========================================
+CREATE TABLE ItemOpening
+(
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+
+    financialyear_id INT NOT NULL,
+
+    itemdetail_id INT NOT NULL,
+
+    quantity INT NOT NULL,
+
+    weight DECIMAL(18,2) DEFAULT 0.00,
+
+    rate DECIMAL(18,2) DEFAULT 0.00,
+
+    amount DECIMAL(18,2) DEFAULT 0.00,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_ItemOpening_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_ItemOpening_FinancialYear
+        FOREIGN KEY (financialyear_id)
+        REFERENCES FinancialYear(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_ItemOpening_ItemDetail
+        FOREIGN KEY (itemdetail_id)
+        REFERENCES ItemDetail(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE(company_id, financialyear_id, itemdetail_id)
+);
+
+
+-- ==========================================
+-- VoucherType Table
+-- ==========================================
+
+CREATE TABLE VoucherType (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+
+    type VARCHAR(10) NOT NULL,
+
+    details VARCHAR(150) NOT NULL,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_vouchertype_company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE (company_id, details)
+);
+
+-- ==========================================
+-- VoucherMain Table
+-- ==========================================
+
+CREATE TABLE VoucherMain (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+
+    vouchertype_id INT NOT NULL,
+
+    financialyear_id INT NOT NULL,
+
+    voucher_no VARCHAR(30) NOT NULL,
+
+    voucher_date DATE NOT NULL,
+
+    voucher_month VARCHAR(25),
+
+    isBalanced ENUM('Balanced', 'Unbalanced')
+        NOT NULL DEFAULT 'Unbalanced',
+
+    created_by VARCHAR(100) NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_vouchermain_company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT fk_vouchermain_vouchertype
+        FOREIGN KEY (vouchertype_id)
+        REFERENCES VoucherType(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT fk_vouchermain_finyear
+        FOREIGN KEY (financialyear_id)
+        REFERENCES FinancialYear(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE (company_id, financialyear_id,vouchertype_id, voucher_month, voucher_no)
+);
+
+-- ==========================================
+-- VoucherDetail Table
+-- ==========================================
+
+CREATE TABLE VoucherDetail (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+
+    vouchermain_id INT NOT NULL,
+
+    financialyear_id INT NOT NULL,
+
+    accountcode INT NOT NULL,
+
+    entry_no INT NOT NULL,
+
+    narration TEXT,
+
+    debit DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    credit DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    voucher_month VARCHAR(25) NOT NULL,
+
+    cheque_no VARCHAR(50) DEFAULT NULL,
+
+    cheque_date DATE DEFAULT NULL,
+
+    status VARCHAR(150) NOT NULL,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    -- Foreign Keys
+    CONSTRAINT fk_voucherdetail_company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT fk_voucherdetail_vouchermain
+        FOREIGN KEY (vouchermain_id)
+        REFERENCES VoucherMain(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT fk_voucherdetail_finyear
+        FOREIGN KEY (financialyear_id)
+        REFERENCES FinancialYear(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE (vouchermain_id, entry_no)
+);
+
+-- ==========================================
+-- VoucherSequence
+-- ==========================================
+CREATE TABLE VoucherSequence (
+    company_id       INT NOT NULL,
+    financialyear_id INT NOT NULL,
+    vouchertype_id   INT NOT NULL,
+    voucher_month    VARCHAR(25) NOT NULL,
+    last_no          INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (company_id, financialyear_id, vouchertype_id, voucher_month)
+);
+
+-- =====================================================================
+-- InwardGatePassMain / InwardGatePassDetail
+-- Records goods physically entering the premises (before a formal GRN
+-- is raised in PurchaseMain).
+-- =====================================================================
+CREATE TABLE InwardGatePassMain (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+    department_id INT NOT NULL,
+    financialyear_id INT NOT NULL,
+
+    inward_no VARCHAR(30) NOT NULL,
+    inward_date DATE NOT NULL,
+
+    challan_no VARCHAR(50) NOT NULL,
+    vehicle_no VARCHAR(30) NOT NULL,
+
+    account_code VARCHAR(9) NOT NULL,
+
+    driver_name VARCHAR(100),
+    driver_phone_no VARCHAR(30),
+
+    remarks VARCHAR(500),
+
+    created_by VARCHAR(100) NULL,
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_InwardGatePassMain_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_InwardGatePassMain_Department
+        FOREIGN KEY (department_id)
+        REFERENCES Department(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_InwardGatePassMain_FinYear
+        FOREIGN KEY (financialyear_id)
+        REFERENCES FinancialYear(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE (company_id, financialyear_id, inward_no)
+);
+
+ALTER TABLE InwardGatePassMain
+ADD COLUMN freight DECIMAL(18,2) NOT NULL DEFAULT 0.00
+AFTER driver_phone_no;
+
+CREATE TABLE InwardGatePassDetail (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+    department_id INT NOT NULL,
+    financialyear_id INT NOT NULL,
+    inwardgatepassmain_id INT NOT NULL,
+
+    Item_code VARCHAR(8) NOT NULL,
+    entry_no INT NOT NULL,
+
+    pieces INT NOT NULL DEFAULT 0,
+    gross_weight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    tear_weight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    net_weight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    amount DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    freight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    total DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_InwardGatePassDetail_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_InwardGatePassDetail_Department
+        FOREIGN KEY (department_id)
+        REFERENCES Department(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_InwardGatePassDetail_FinYear
+        FOREIGN KEY (financialyear_id)
+        REFERENCES FinancialYear(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_InwardGatePassDetail_Main
+        FOREIGN KEY (inwardgatepassmain_id)
+        REFERENCES InwardGatePassMain(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE (inwardgatepassmain_id, entry_no)
+);
+
+CREATE TABLE InwardGatePassSequence (
+    company_id       INT NOT NULL,
+    financialyear_id INT NOT NULL,
+    last_no          INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (company_id, financialyear_id)
+);
+
+
+-- ==========================================
+-- PurchaseMain Table
+-- ==========================================
+CREATE TABLE PurchaseMain (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    company_id INT NOT NULL,
+    department_id INT NOT NULL,
+    financialyear_id INT NOT NULL,
+
+    grn_no VARCHAR(30) NOT NULL,
+    grn_date DATE NOT NULL,
+
+    gp_no VARCHAR(30),
+    gp_date DATE,
+
+    supplier_code VARCHAR(9) NOT NULL,
+
+    invoice_no VARCHAR(50) NULL,
+    invoice_date DATE NULL,
+
+    freight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    entry ENUM('user','auto') NOT NULL DEFAULT 'user',
+
+    created_by VARCHAR(100) NULL,
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_PurchaseMain_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_PurchaseMain_Department
+        FOREIGN KEY (department_id)
+        REFERENCES Department(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_PurchaseMain_FinYear
+        FOREIGN KEY (financialyear_id)
+        REFERENCES FinancialYear(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE (company_id, financialyear_id, grn_no, supplier_code)
+);
+
+-- ==========================================
+-- PurchaseDetail Table
+-- ==========================================
+CREATE TABLE PurchaseDetail (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    company_id INT NOT NULL,
+    financialyear_id INT NOT NULL,
+    purchasemain_id INT NOT NULL,
+
+    Item_code VARCHAR(8) NOT NULL,
+    entry_no INT NOT NULL,
+    entry ENUM('user','auto') NOT NULL DEFAULT 'user',
+    stocks ENUM('available','out') NOT NULL DEFAULT 'available',
+
+    pieces INT NOT NULL DEFAULT 0,
+    gross_weight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    tear_weight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    net_weight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    rate DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    amount DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    freight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    total DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    -- GST columns
+    gst_percent DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+    gst_amount DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    further_percent DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+    further_amount DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    other_tax DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_PurchaseDetail_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_PurchaseDetail_FinYear
+        FOREIGN KEY (financialyear_id)
+        REFERENCES FinancialYear(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_PurchaseDetail_PurchaseMain
+        FOREIGN KEY (purchasemain_id)
+        REFERENCES PurchaseMain(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE (purchasemain_id, entry_no)
+);
+
+
+
+-- ==========================================
+-- PurchaseSequence
+-- ==========================================
+CREATE TABLE PurchaseSequence (
+    company_id       INT NOT NULL,
+    financialyear_id INT NOT NULL,
+    last_no          INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (company_id, financialyear_id)
+);
+
+-- ==========================================
+-- PurchaseReturnMain Table
+-- ==========================================
+CREATE TABLE PurchaseReturnMain (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    company_id INT NOT NULL,
+    department_id INT NOT NULL,
+    financialyear_id INT NOT NULL,
+
+    return_no VARCHAR(30) NOT NULL,
+    return_date DATE NOT NULL,
+
+    gp_no VARCHAR(30),
+    gp_date DATE,
+
+    supplier_code VARCHAR(9) NOT NULL,
+    purchase_grn VARCHAR(30) NULL,
+
+    invoice_no VARCHAR(50) NULL,
+    invoice_date DATE NULL,
+
+    freight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    entry ENUM('user','auto') NOT NULL DEFAULT 'user',
+
+    created_by VARCHAR(100) NULL,
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_PurchaseReturnMain_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_PurchaseReturnMain_Department
+        FOREIGN KEY (department_id)
+        REFERENCES Department(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_PurchaseReturnMain_FinYear
+        FOREIGN KEY (financialyear_id)
+        REFERENCES FinancialYear(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE (company_id, financialyear_id, return_no, supplier_code),
+    UNIQUE (company_id, financialyear_id, purchase_grn)
+);
+
+-- ==========================================
+-- PurchaseReturnDetail Table
+-- ==========================================
+CREATE TABLE PurchaseReturnDetail (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    company_id INT NOT NULL,
+    financialyear_id INT NOT NULL,
+    purchasereturnmain_id INT NOT NULL,
+
+    Item_code VARCHAR(8) NOT NULL,
+    entry_no INT NOT NULL,
+    entry ENUM('user','auto') NOT NULL DEFAULT 'user',
+
+    pieces INT NOT NULL DEFAULT 0,
+    gross_weight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    tear_weight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    net_weight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    rate DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    amount DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    freight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    total DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    -- GST columns
+    gst_percent DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+    gst_amount DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    further_percent DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+    further_amount DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    other_tax DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_PurchaseReturnDetail_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_PurchaseReturnDetail_FinYear
+        FOREIGN KEY (financialyear_id)
+        REFERENCES FinancialYear(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_PurchaseReturnDetail_PurchaseReturnMain
+        FOREIGN KEY (purchasereturnmain_id)
+        REFERENCES PurchaseReturnMain(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE (purchasereturnmain_id, entry_no)
+);
+
+-- ==========================================
+-- PurchaseReturnSequence
+-- ==========================================
+CREATE TABLE PurchaseReturnSequence (
+    company_id       INT NOT NULL,
+    financialyear_id INT NOT NULL,
+    last_no          INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (company_id, financialyear_id)
+);
+
+
+-- =====================================================================
+-- IssuedMain / IssuedDetail
+-- Internal stock issue from store to a department.
+-- =====================================================================
+CREATE TABLE IssuedMain (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+    department_id INT NOT NULL,
+    financialyear_id INT NOT NULL,
+
+    issued_no VARCHAR(30) NOT NULL,
+    issued_date DATE NOT NULL,
+
+    remarks VARCHAR(500),
+
+    created_by VARCHAR(100) NULL,
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_IssuedMain_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_IssuedMain_Department
+        FOREIGN KEY (department_id)
+        REFERENCES Department(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_IssuedMain_FinYear
+        FOREIGN KEY (financialyear_id)
+        REFERENCES FinancialYear(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE (company_id, financialyear_id, issued_no)
+);
+
+CREATE TABLE IssuedDetail (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+    department_id INT NOT NULL,
+    financialyear_id INT NOT NULL,
+    issuedmain_id INT NOT NULL,
+
+    Item_code VARCHAR(8) NOT NULL,
+    entry_no INT NOT NULL,
+
+    pieces INT NOT NULL DEFAULT 0,
+    gross_weight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    tear_weight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    net_weight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    rate DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    amount DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    freight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    total DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_IssuedDetail_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_IssuedDetail_Department
+        FOREIGN KEY (department_id)
+        REFERENCES Department(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_IssuedDetail_FinYear
+        FOREIGN KEY (financialyear_id)
+        REFERENCES FinancialYear(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_IssuedDetail_Main
+        FOREIGN KEY (issuedmain_id)
+        REFERENCES IssuedMain(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE (issuedmain_id, entry_no)
+);
+
+CREATE TABLE IssuedSequence (
+    company_id       INT NOT NULL,
+    financialyear_id INT NOT NULL,
+    last_no          INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (company_id, financialyear_id)
+);
+
+
+
+
+CREATE INDEX idx_issueddetail_source ON IssuedDetail(source_type, source_detail_id);
+
+-- Drop the pricing columns IssuedDetail doesn't need - Issued only tracks
+-- stock movement, not value.
+ALTER TABLE IssuedDetail
+    DROP COLUMN rate,
+    DROP COLUMN amount,
+    DROP COLUMN freight,
+    DROP COLUMN total;
+
+-- Add FIFO consumption-tracking columns, mirroring what SalesDetail uses
+-- against PurchaseDetail/SalesReturnDetail. Issued only ever draws from
+-- Purchase stock (source_type stays 'purchase' for now, kept as an ENUM
+-- rather than a fixed column so a future source can be added later without
+-- another migration). `stocks` lets a future Production step draw FIFO
+-- from IssuedDetail the same way Sales draws FIFO from PurchaseDetail.
+ALTER TABLE IssuedDetail
+    ADD COLUMN stocks ENUM('available','out') NOT NULL DEFAULT 'available' AFTER entry_no,
+    ADD COLUMN source_type ENUM('purchase') NOT NULL DEFAULT 'purchase' AFTER net_weight,
+    ADD COLUMN source_detail_id INT NOT NULL AFTER source_type,
+    ADD COLUMN grn_no VARCHAR(30) NULL AFTER source_detail_id,
+    ADD COLUMN purchase_entry_no INT NULL AFTER grn_no;
+
+
+
+
+
+-- =====================================================================
+-- ProductionMain / ProductionDetail
+-- Finished-goods production, sourced from an IssuedMain batch.
+-- =====================================================================
+CREATE TABLE ProductionMain (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+    department_id INT NOT NULL,
+    financialyear_id INT NOT NULL,
+
+    production_no VARCHAR(30) NOT NULL,
+    production_date DATE NOT NULL,
+
+    issued_no VARCHAR(30) NULL,
+
+    remarks VARCHAR(500),
+
+    created_by VARCHAR(100) NULL,
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_ProductionMain_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_ProductionMain_Department
+        FOREIGN KEY (department_id)
+        REFERENCES Department(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_ProductionMain_FinYear
+        FOREIGN KEY (financialyear_id)
+        REFERENCES FinancialYear(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE (company_id, financialyear_id, production_no)
+);
+
+CREATE TABLE ProductionDetail (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+    department_id INT NOT NULL,
+    financialyear_id INT NOT NULL,
+    productionmain_id INT NOT NULL,
+
+    Item_code VARCHAR(8) NOT NULL,
+    entry_no INT NOT NULL,
+    stocks ENUM('available','out') NOT NULL DEFAULT 'available',
+
+    pieces INT NOT NULL DEFAULT 0,
+    gross_weight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    tear_weight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    net_weight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    rate DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    amount DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    total DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_ProductionDetail_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_ProductionDetail_Department
+        FOREIGN KEY (department_id)
+        REFERENCES Department(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_ProductionDetail_FinYear
+        FOREIGN KEY (financialyear_id)
+        REFERENCES FinancialYear(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_ProductionDetail_Main
+        FOREIGN KEY (productionmain_id)
+        REFERENCES ProductionMain(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE (productionmain_id, entry_no)
+);
+
+CREATE TABLE ProductionSequence (
+    company_id       INT NOT NULL,
+    financialyear_id INT NOT NULL,
+    last_no          INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (company_id, financialyear_id)
+);
+
+
+
+
+ALTER TABLE ProductionDetail
+    ADD COLUMN source_type ENUM('issued') NOT NULL DEFAULT 'issued' AFTER net_weight,
+    ADD COLUMN source_detail_id INT NOT NULL AFTER source_type,
+    ADD COLUMN issued_no VARCHAR(30) NULL AFTER source_detail_id,
+    ADD COLUMN issued_entry_no INT NULL AFTER issued_no;
+
+
+
+ALTER TABLE ProductionDetail
+    DROP FOREIGN KEY FK_ProductionDetail_Main, -- if needed to reorder, otherwise skip
+    DROP COLUMN stocks,
+    DROP COLUMN source_type,
+    DROP COLUMN source_detail_id,
+    DROP COLUMN issued_no,
+    DROP COLUMN issued_entry_no;
+
+ALTER TABLE ProductionDetail
+    ADD COLUMN stocks ENUM('available','out') NOT NULL DEFAULT 'available' AFTER entry_no;
+
+
+
+
+
+-- =====================================================================
+-- SalesContractMain / SalesContractDetail
+-- Stands apart from the warehouse flow (no department_id) - a commercial
+-- agreement referenced later by the Outward Gate Pass.
+-- =====================================================================
+CREATE TABLE SalesContractMain (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+    financialyear_id INT NOT NULL,
+
+    contract_no VARCHAR(30) NOT NULL,
+    contract_date DATE NOT NULL,
+
+    account_code VARCHAR(9) NOT NULL,
+
+    delivery_date DATE NULL,
+    remarks VARCHAR(500),
+    entry ENUM('user','auto') NOT NULL DEFAULT 'user',
+
+    created_by VARCHAR(100) NULL,
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_SalesContractMain_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_SalesContractMain_FinYear
+        FOREIGN KEY (financialyear_id)
+        REFERENCES FinancialYear(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE (company_id, financialyear_id, contract_no)
+);
+
+CREATE TABLE SalesContractDetail (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+    financialyear_id INT NOT NULL,
+    salescontractmain_id INT NOT NULL,
+
+    Item_code VARCHAR(8) NOT NULL,
+    details VARCHAR(255) NULL,
+
+    entry_no INT NOT NULL,
+
+    pieces INT NOT NULL DEFAULT 0,
+    gross_weight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    tear_weight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    net_weight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    rate DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    amount DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    freight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    total DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    gst_percent DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+    gst_amount DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    further_percent DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+    further_amount DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    other_tax DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    terms_condition TEXT NULL,
+
+    CONSTRAINT FK_SalesContractDetail_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_SalesContractDetail_FinYear
+        FOREIGN KEY (financialyear_id)
+        REFERENCES FinancialYear(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_SalesContractDetail_Main
+        FOREIGN KEY (salescontractmain_id)
+        REFERENCES SalesContractMain(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE (salescontractmain_id, entry_no)
+);
+
+CREATE TABLE SalesContractSequence (
+    company_id       INT NOT NULL,
+    financialyear_id INT NOT NULL,
+    last_no          INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (company_id, financialyear_id)
+);
+
+
+
+
+ALTER TABLE SalesContractMain
+    DROP COLUMN entry;
+
+
+
+
+
+
+-- =====================================================================
+-- OutwardGatePassMain / OutwardGatePassDetail
+-- Records goods physically leaving the premises against a sale / contract
+-- / production dispatch.
+-- =====================================================================
+CREATE TABLE OutwardGatePassMain (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+    department_id INT NOT NULL,
+    financialyear_id INT NOT NULL,
+
+    outward_no VARCHAR(30) NOT NULL,
+    outward_date DATE NOT NULL,
+
+    account_code VARCHAR(9) NOT NULL,
+
+    vehicle_no VARCHAR(30) NOT NULL,
+    vehicle_type VARCHAR(50),
+
+    driver_name VARCHAR(100),
+    driver_phone_no VARCHAR(30),
+
+    contract_no VARCHAR(30) NULL,
+    production_no VARCHAR(30) NULL,
+
+    remarks VARCHAR(500),
+
+    created_by VARCHAR(100) NULL,
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_OutwardGatePassMain_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_OutwardGatePassMain_Department
+        FOREIGN KEY (department_id)
+        REFERENCES Department(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_OutwardGatePassMain_FinYear
+        FOREIGN KEY (financialyear_id)
+        REFERENCES FinancialYear(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE (company_id, financialyear_id, outward_no)
+);
+
+CREATE TABLE OutwardGatePassDetail (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    company_id INT NOT NULL,
+    department_id INT NOT NULL,
+    financialyear_id INT NOT NULL,
+    outwardgatepassmain_id INT NOT NULL,
+
+    Item_code VARCHAR(8) NOT NULL,
+    entry_no INT NOT NULL,
+
+    pieces INT NOT NULL DEFAULT 0,
+    gross_weight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    tear_weight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    net_weight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    amount DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    freight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    total DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    gst_percent DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+    gst_amount DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    further_percent DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+    further_amount DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    other_tax DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    CONSTRAINT FK_OutwardGatePassDetail_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_OutwardGatePassDetail_Department
+        FOREIGN KEY (department_id)
+        REFERENCES Department(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_OutwardGatePassDetail_FinYear
+        FOREIGN KEY (financialyear_id)
+        REFERENCES FinancialYear(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    CONSTRAINT FK_OutwardGatePassDetail_Main
+        FOREIGN KEY (outwardgatepassmain_id)
+        REFERENCES OutwardGatePassMain(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+
+    UNIQUE (outwardgatepassmain_id, entry_no)
+);
+
+CREATE TABLE OutwardGatePassSequence (
+    company_id       INT NOT NULL,
+    financialyear_id INT NOT NULL,
+    last_no          INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (company_id, financialyear_id)
+);
+
+
+
+
+-- =====================================================================
+-- Outward Gate Pass: freight belongs on the document header, not per line
+-- =====================================================================
+
+-- Drop freight from OutwardGatePassDetail
+ALTER TABLE OutwardGatePassDetail
+    DROP COLUMN freight;
+
+-- Add freight to OutwardGatePassMain (same position/pattern as InwardGatePassMain)
+ALTER TABLE OutwardGatePassMain
+    ADD COLUMN freight DECIMAL(18,2) NOT NULL DEFAULT 0.00
+    AFTER driver_phone_no;
+
+ALTER TABLE OutwardGatePassDetail
+    DROP COLUMN amount,
+    DROP COLUMN gst_percent,
+    DROP COLUMN gst_amount,
+    DROP COLUMN further_percent,
+    DROP COLUMN further_amount,
+    DROP COLUMN other_tax,
+    DROP COLUMN total;
+
+
+
+-- ==========================================
+-- SalesMain Table
+-- ==========================================
+CREATE TABLE SalesMain (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    company_id INT NOT NULL,
+    department_id INT NOT NULL,
+    financialyear_id INT NOT NULL,
+    gp_no VARCHAR(30),
+    gp_date DATE,
+    po_no VARCHAR(30),
+    po_date DATE,
+    invoice_no VARCHAR(50) NOT NULL,
+    invoice_date DATE NOT NULL,
+    builty_no VARCHAR(50),
+    customer_code VARCHAR(9) NOT NULL,
+    freight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    entry ENUM('user','auto') NOT NULL DEFAULT 'user',
+    total DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    created_by VARCHAR(100) NULL,
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT FK_SalesMain_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    CONSTRAINT FK_SalesMain_Department
+        FOREIGN KEY (department_id)
+        REFERENCES Department(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    CONSTRAINT FK_SalesMain_FinYear
+        FOREIGN KEY (financialyear_id)
+        REFERENCES FinancialYear(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    UNIQUE (company_id, financialyear_id, invoice_no, customer_code)
+);
+
+-- ==========================================
+-- SalesDetail Table
+-- ==========================================
+CREATE TABLE SalesDetail (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    company_id INT NOT NULL,
+    financialyear_id INT NOT NULL,
+    sale_main INT NOT NULL,
+    Item_code VARCHAR(8) NOT NULL,
+    entry_no INT NOT NULL,
+    grn_no INT NOT NUll,
+    purchase_entry_no INT NOT NULL,
+    source_type ENUM('purchase','sales_return') NOT NULL DEFAULT 'purchase',
+    source_detail_id INT NOT NULL,
+    entry ENUM('user','auto') NOT NULL DEFAULT 'user',
+    pieces INT NOT NULL DEFAULT 0,
+    gross_weight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    tear_weight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    net_weight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    rate DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    amount DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    freight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    total DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    -- GST columns
+    gst_percent DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+    gst_amount DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    further_percent DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+    further_amount DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    other_tax DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT FK_SalesDetail_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    CONSTRAINT FK_SalesDetail_FinYear
+        FOREIGN KEY (financialyear_id)
+        REFERENCES FinancialYear(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    CONSTRAINT FK_SalesDetail_SalesMain
+        FOREIGN KEY (sale_main)
+        REFERENCES SalesMain(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    UNIQUE (sale_main, entry_no)
+);
+
+-- ==========================================
+-- SalesSequence Table
+-- ==========================================
+CREATE TABLE SalesSequence (
+    company_id       INT NOT NULL,
+    financialyear_id INT NOT NULL,
+    last_no          INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (company_id, financialyear_id)
+);
+
+
+
+ALTER TABLE SalesDetail
+    MODIFY source_type ENUM('purchase','sales_return','production') NOT NULL DEFAULT 'purchase';
+
+
+
+
+-- ==========================================
+-- SalesReturnMain Table
+-- ==========================================
+CREATE TABLE SalesReturnMain (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    company_id INT NOT NULL,
+    department_id INT NOT NULL,
+    financialyear_id INT NOT NULL,
+    gp_no VARCHAR(30),
+    gp_date DATE,
+    po_no VARCHAR(30),
+    po_date DATE,
+    invoice_no VARCHAR(50) NOT NULL,
+    invoice_date DATE NOT NULL,
+    builty_no VARCHAR(50),
+    customer_code VARCHAR(9) NOT NULL,
+    sales_invoice VARCHAR(50) NULL,
+    freight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    entry ENUM('user','auto') NOT NULL DEFAULT 'user',
+    total DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    payment_status ENUM('paid', 'unpaid') NOT NULL DEFAULT 'unpaid',
+    created_by VARCHAR(100) NULL,
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT FK_SalesReturnMain_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    CONSTRAINT FK_SalesReturnMain_Department
+        FOREIGN KEY (department_id)
+        REFERENCES Department(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    CONSTRAINT FK_SalesReturnMain_FinYear
+        FOREIGN KEY (financialyear_id)
+        REFERENCES FinancialYear(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    UNIQUE (company_id, financialyear_id, invoice_no, customer_code),
+    UNIQUE (company_id, financialyear_id, sales_invoice)
+);
+
+-- ==========================================
+-- SalesReturnDetail Table
+-- ==========================================
+CREATE TABLE SalesReturnDetail (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    company_id INT NOT NULL,
+    financialyear_id INT NOT NULL,
+    sales_return_main INT NOT NULL,
+    Item_code VARCHAR(8) NOT NULL,
+    entry_no INT NOT NULL,
+    entry ENUM('user','auto') NOT NULL DEFAULT 'user',
+    stocks ENUM('available','out') NOT NULL DEFAULT 'available',
+    pieces INT NOT NULL DEFAULT 0,
+    gross_weight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    tear_weight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    net_weight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    rate DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    amount DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    freight DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    total DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    -- GST columns
+    gst_percent DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+    gst_amount DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    further_percent DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+    further_amount DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    other_tax DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+
+    add_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT FK_SalesReturnDetail_Company
+        FOREIGN KEY (company_id)
+        REFERENCES CompanyName(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    CONSTRAINT FK_SalesReturnDetail_FinYear
+        FOREIGN KEY (financialyear_id)
+        REFERENCES FinancialYear(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    CONSTRAINT FK_SalesReturnDetail_SalesReturnMain
+        FOREIGN KEY (sales_return_main)
+        REFERENCES SalesReturnMain(id)
+        ON DELETE RESTRICT
+        ON UPDATE CASCADE,
+    UNIQUE (sales_return_main, entry_no)
+);
+
+-- ==========================================
+-- SalesReturnSequence Table
+-- ==========================================
+CREATE TABLE SalesReturnSequence (
+    company_id       INT NOT NULL,
+    financialyear_id INT NOT NULL,
+    last_no          INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (company_id, financialyear_id)
+);
+
+
+-- ==========================================
+-- ActivityLog Table
+-- ==========================================
+CREATE TABLE ActivityLog (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+
+    entry_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    document_type VARCHAR(50) NOT NULL,
+
+    document_no VARCHAR(50) NULL,
+
+    document_date DATE NULL,
+
+    status ENUM('New', 'Edit', 'Delete') NOT NULL,
+
+    remarks VARCHAR(500) NULL,
+
+    username VARCHAR(100) NOT NULL,
+
+    system_name_ip VARCHAR(255) NULL,
+
+    INDEX idx_activitylog_document_type (document_type),
+    INDEX idx_activitylog_document_no (document_no),
+    INDEX idx_activitylog_entry_date (entry_date),
+    INDEX idx_activitylog_username (username),
+    INDEX idx_activitylog_type_no (document_type, document_no)
+);
+
+
+CREATE INDEX idx_vouchermain_created_by        ON VoucherMain(created_by);
+CREATE INDEX idx_purchasemain_created_by       ON PurchaseMain(created_by);
+CREATE INDEX idx_purchasereturnmain_created_by ON PurchaseReturnMain(created_by);
+CREATE INDEX idx_salesmain_created_by          ON SalesMain(created_by);
+CREATE INDEX idx_salesreturnmain_created_by    ON SalesReturnMain(created_by);
+CREATE INDEX idx_inwardgatepassmain_created_by ON InwardGatePassMain(created_by);
+CREATE INDEX idx_issuedmain_created_by         ON IssuedMain(created_by);
+CREATE INDEX idx_productionmain_created_by     ON ProductionMain(created_by);
+CREATE INDEX idx_salescontractmain_created_by  ON SalesContractMain(created_by);
+CREATE INDEX idx_outwardgatepassmain_created_by ON OutwardGatePassMain(created_by);
+
+
+
+
+
+
+
+
+
+
+
+ALTER TABLE PurchaseReturnDetail
+    ADD COLUMN source_detail_id INT NULL AFTER Item_code;
+
+ALTER TABLE PurchaseReturnDetail
+    ADD CONSTRAINT FK_PurchaseReturnDetail_PurchaseDetail
+    FOREIGN KEY (source_detail_id) REFERENCES PurchaseDetail(id)
+    ON DELETE RESTRICT ON UPDATE CASCADE;
+
+
+
+ALTER TABLE SalesDetail
+    MODIFY grn_no INT NULL;
